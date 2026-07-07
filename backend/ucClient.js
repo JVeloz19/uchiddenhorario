@@ -2,7 +2,36 @@ const BASE = 'https://registration9.uc.cl/StudentRegistrationSsb/ssb';
 
 const UNIQUE_SESSION_ID = `nwsef${Date.now()}`;
 
+class CookieJar {
+  constructor() {
+    this.cookies = new Map();
+  }
+
+  absorb(res) {
+    for (const raw of res.headers.getSetCookie?.() ?? []) {
+      const [pair] = raw.split(';');
+      const eq = pair.indexOf('=');
+      if (eq === -1) continue;
+      this.cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+    }
+  }
+
+  toSession() {
+    return {
+      cookies: Object.fromEntries(this.cookies.entries()),
+      jsessionId: this.cookies.get('JSESSIONID') ?? null,
+      rbdiCookie: this.cookies.get('RbdI6CHvhzrLAA1Q6g__') ?? null,
+      synchronizerToken: null,
+      anonymous: true,
+    };
+  }
+}
+
 function buildCookieHeader(session) {
+  if (session.cookies) {
+    return Object.entries(session.cookies).map(([k, v]) => `${k}=${v}`).join('; ');
+  }
+
   const parts = [];
   if (session.jsessionId) parts.push(`JSESSIONID=${session.jsessionId}`);
   if (session.rbdiCookie) parts.push(`RbdI6CHvhzrLAA1Q6g__=${session.rbdiCookie}`);
@@ -23,6 +52,37 @@ function commonHeaders(session, extra = {}) {
     'X-Synchronizer-Token': session.synchronizerToken ?? '',
     ...extra,
   };
+}
+
+export async function createAnonymousUcSession() {
+  const jar = new CookieJar();
+
+  const termSelectionRes = await fetch(`${BASE}/term/termSelection?mode=search`, {
+    redirect: 'follow',
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+    },
+  });
+  jar.absorb(termSelectionRes);
+  await termSelectionRes.text();
+
+  const classSearchRes = await fetch(`${BASE}/classSearch/classSearch`, {
+    redirect: 'follow',
+    headers: {
+      Cookie: jar.toSession().cookies ? buildCookieHeader(jar.toSession()) : '',
+      'User-Agent':
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+    },
+  });
+  jar.absorb(classSearchRes);
+  await classSearchRes.text();
+
+  const session = jar.toSession();
+  if (!session.jsessionId) {
+    throw new AuthExpiredError();
+  }
+  return session;
 }
 
 // UC's searchResults endpoint keeps server-side search-form state across

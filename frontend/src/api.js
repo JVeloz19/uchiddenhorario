@@ -1,21 +1,15 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8787';
 
 export class AuthExpiredError extends Error {}
-export class LoginFailedError extends Error {}
 
-export async function loginWithUc(username, password) {
-  const res = await fetch(`${API_BASE}/api/login`, {
+export async function createAnonymousSession() {
+  const res = await fetch(`${API_BASE}/api/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
   });
 
-  if (res.status === 401) {
-    const body = await res.json().catch(() => ({}));
-    throw new LoginFailedError(body.message ?? 'Usuario o contraseña incorrectos.');
-  }
   if (!res.ok) {
-    throw new Error(`Login failed (${res.status})`);
+    throw new Error(`Anonymous session failed (${res.status})`);
   }
   return res.json(); // { token, expiresInMs }
 }
@@ -66,15 +60,15 @@ export async function searchCourse(subjectCourse, term, token, filters = {}) {
   }
 
   const res = await authedGet(`/api/search?${params.toString()}`, token);
-  return handleResponse(res, 'Tu sesión UC expiró, inicia sesión de nuevo.');
+  return handleResponse(res, 'Tu sesión de búsqueda expiró, se creará una nueva.');
 }
 
 export async function getFilterOptions(term, token) {
   const res = await authedGet(`/api/filters?${new URLSearchParams({ term })}`, token);
-  return handleResponse(res, 'Tu sesión UC expiró, inicia sesión de nuevo.');
+  return handleResponse(res, 'Tu sesión de búsqueda expiró, se creará una nueva.');
 }
 
 export async function searchInstructors(query, term, token) {
   const res = await authedGet(`/api/instructors?${new URLSearchParams({ term, q: query })}`, token);
-  return handleResponse(res, 'Tu sesión UC expiró, inicia sesión de nuevo.');
+  return handleResponse(res, 'Tu sesión de búsqueda expiró, se creará una nueva.');
 }

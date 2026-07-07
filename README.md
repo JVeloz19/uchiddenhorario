@@ -10,7 +10,7 @@ No literally este código completo, TODO, el backend, el frontend, los comentari
 
 Es un buscador de ramos y horarios para la plataforma de inscripción UC (Banner/Ellucian, para los nerds 🤓), porque la página oficial tiene la UX de una tesis de ingeniería civil del año 2003, y nosotras merecemos algo que sirva. PERO ahora es mucho más que un buscador simple, esto se convirtió en una PLATAFORMA, sisters:
 
-- 🔐 **Login de verdad con tu cuenta UC** — ya no hay que sacrificar las cookies de nadie, cada quien entra con su propio usuario y clave, como Dios manda
+- 🔐 **Sesión anónima de búsqueda** — ya no hay que sacrificar cookies, tokens ni credenciales de nadie; el backend abre una sesión pública de Banner solo para consultar ramos
 - 🔍 **Búsqueda con filtros avanzados** — profesor, campus, escuela, formato de curso, área de formación general, días de la semana, rango de horario, solo cursos con vacantes, TODO lo que el Banner oficial tiene y más organizadito
 - 💖 **Mi Horario** — arma tu horario visual completo, con colores personalizables por curso, detecta conflictos de horario automáticamente, y sabe distinguir entre una clase real y una Interrogación (SIN asumir que solo existen INT1 e INT2, mis respetos a quien tiene ramos con Interrogación 3, ya te vimos)
 
@@ -20,11 +20,11 @@ Le tiras el código del ramo (tipo `IIC2133`) o usas los filtros, eliges el seme
 
 ```text
 uchiddenhorario/
-├── backend/     # Express que le hace de proxy a UC, ahora con login real
+├── backend/     # Express que le hace de proxy a UC con sesión anónima de búsqueda
 └── frontend/    # React + Vite, la cara bonita del asunto
 ```
 
-**¿Por qué existe un backend?** Porque la sesión de UC necesita cookies especiales y tokens que NO pueden vivir seguros en el navegador de cada quien. El backend hace de intermediario: recibe tu usuario y clave UC, hace el login DE VERDAD contra el sistema CAS de la universidad (sí, el mismo que usas para todo en la UC), y guarda la sesión resultante SOLO en memoria del servidor, nunca en disco, nunca en un archivo, nunca en ningún lado que sobreviva un reinicio. Tu contraseña se usa UNA vez, para ESA llamada, y luego desaparece como si nunca hubiera existido, la manifestación más pura de "lo que se dice en Las Vegas se queda en Las Vegas" pero para peticiones HTTP.
+**¿Por qué existe un backend?** Porque Banner usa cookies de sesión y estado server-side que no conviene exponer ni manejar directo desde el navegador. El backend abre una sesión anónima de búsqueda contra `registration9.uc.cl`, guarda esas cookies SOLO en memoria del servidor y le entrega al frontend un token opaco temporal. No recibe usuario, no recibe contraseña, no toca CAS y nada sobrevive a un reinicio.
 
 ## cómo correrlo, bestie (setup actualizado, ya no hay que robar cookies de nadie)
 
@@ -51,11 +51,11 @@ npm run dev
 
 Corriendo en `http://localhost:5173` (o el puerto que le toque si el 5173 estaba ocupado, Vite hace lo suyo, el backend acepta cualquier puertito de `localhost` así que no estresen).
 
-Abran eso en el navegador, **inicien sesión con su usuario y clave UC** (sí, la misma que usan para todo, el sistema hace un login CAS real contra `sso.uc.cl`), tiren un código de ramo o usen los filtros avanzados, y ATAQUEN.
+Abran eso en el navegador, esperen a que la app cree la sesión de búsqueda automáticamente, tiren un código de ramo o usen los filtros avanzados, y ATAQUEN.
 
-## cómo funciona el login por dentro (para quien le interese el chisme técnico)
+## cómo funciona la sesión por dentro (para quien le interese el chisme técnico)
 
-Esto merece su propia sección porque fue un VIAJE. Resulta que se puede hacer login mandando usuario+contraseña directo al endpoint de CAS de la UC (`sso.uc.cl/cas/login`), exactamente como lo haría tu navegador: se pide la página de login (que trae un token `execution` de un solo uso), se manda el POST con las credenciales, CAS redirige con un ticket, ese ticket se canjea en `registration9.uc.cl` y ahí sale una sesión (`JSESSIONID`) real y funcional. Todo esto pasa en el backend, servidor a servidor, tu contraseña nunca toca el disco ni un log ni nada que no sea esa única llamada.
+Esto merece su propia sección porque fue un VIAJE. Para buscar ramos no hace falta CAS: basta con inicializar Banner como lo haría la pantalla pública de búsqueda. El backend visita la selección de término, entra a la pantalla de búsqueda de clases y conserva las cookies que Banner entrega, incluyendo `JSESSIONID`. Después fija el período elegido y llama a la misma API de `searchResults` que usa la interfaz oficial. Todo pasa servidor a servidor y sin credenciales UC.
 
 ## el lore de las herramientas de búsqueda avanzada (posiblemente el capítulo más icónico)
 
@@ -77,8 +77,8 @@ Miren esto, este screenshot de abajo es HISTÓRICO, es un artefacto arqueológic
 
 Bajando el tono UN segundo, de verdad, porque esto importa:
 
-- Este proyecto existe con fines de **investigación y para tener un frontend más agradable** sobre datos que YA son públicos y consultables por cualquier estudiante con su propia cuenta UC. No se hace scraping masivo, no se automatiza inscripción, no se toca NADA que no sea "mostrar bonito lo que ya se puede ver feo".
-- Cada quien usa **su propia cuenta y su propia sesión** para buscar, iniciando sesión de verdad contra el sistema CAS oficial de la universidad. No hay una cuenta compartida, no hay credenciales de terceros dando vueltas, no hay nada guardado en ningún lado más allá de la sesión activa en memoria del servidor mientras se usa.
+- Este proyecto existe con fines de **investigación y para tener un frontend más agradable** sobre datos consultables desde la búsqueda de ramos. No se hace scraping masivo, no se automatiza inscripción, no se toca NADA que no sea "mostrar bonito lo que ya se puede ver feo".
+- Cada sesión de búsqueda se crea anónimamente desde el backend y queda solo en memoria. No hay cuenta compartida, no hay credenciales de terceros dando vueltas, no hay cookies guardadas en disco.
 - Durante el desarrollo se identificó que la UC expone públicamente archivos JavaScript sin minificar (`*.unminified.js`) junto a los minificados, lo cual permitió entender mejor cómo funciona su sistema de búsqueda. Esto se documenta acá con fines completamente informativos/de transparencia, no se explotó ninguna vulnerabilidad, no se accedió a nada que no fuera ya público y servido activamente por el propio servidor de la universidad.
 - Si alguien de la Dirección de Informática UC está leyendo esto: hola, we come in peace, si algo acá les preocupa avísenle al dueño del repo y se conversa, esto se hizo por cariño al sistema (bueno, MÁS BIEN por hartazgo con la UX del sistema oficial) no por mala leche.
 
@@ -86,8 +86,7 @@ Y ahora sí, volvemos al tono normal:
 
 ## disclaimers finales (la parte aburrida pero necesaria, lo siento no lo siento)
 
-- Cada persona que usa esto necesita su propia cuenta UC activa, no hay atajos, no hay cuenta compartida, así de simple.
-- No hay garantía de que esto siga funcionando si UC le cambia el diseño a su sistema Banner o su CAS, porque este código literalmente imita un flujo de login y búsqueda capturado en un momento específico del tiempo. Así es el vibe coding, bestie, vivimos al límite.
+- No hay garantía de que esto siga funcionando si UC le cambia el diseño a su sistema Banner o su flujo de búsqueda, porque este código imita un flujo observado en un momento específico del tiempo. Así es el vibe coding, bestie, vivimos al límite.
 - Los filtros "Buscar con Cualquier Palabra", "Buscar Palabra o NRC" y "Nombre" del Banner oficial NO están soportados acá, porque descubrimos que ni siquiera el Banner oficial los hace funcionar del lado del servidor correctamente, así que no íbamos a fingir que nosotros sí podíamos, la honestidad es un valor en esta casa.
 - Si algo se rompe, no me culpen a mí (Claude), culpen a la sesión que expiró, siempre es la sesión.
 
