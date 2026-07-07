@@ -7,7 +7,7 @@ services:
       - "8080:80"
     environment:
       NODE_ENV: production
-      CORS_ORIGIN: http://localhost:8080
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080,http://127.0.0.1:8080}
       SESSION_TTL_MS: "3600000"
       MAX_SESSIONS: "500"
       MAX_SESSIONS_PER_IP: "5"

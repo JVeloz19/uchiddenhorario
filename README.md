@@ -52,7 +52,7 @@ Build and run locally:
 docker build -t uchiddenhorario .
 docker run --rm -p 8080:80 \
   -e NODE_ENV=production \
-  -e CORS_ORIGIN=http://localhost:8080 \
+  -e CORS_ORIGIN=http://localhost:8080,http://127.0.0.1:8080 \
   uchiddenhorario
 ```
 
@@ -60,7 +60,7 @@ Open `http://localhost:8080`. The API is same-origin under `/api`, so no `VITE_A
 
 ## Docker Compose
 
-The included `docker-compose.yml` uses the image produced by the manual GitHub Actions workflow:
+The included `docker-compose.yml` uses the image produced by the manual GitHub Actions workflow and defaults CORS to both `localhost` and `127.0.0.1` on port `8080`:
 
 ```yaml
 services:
@@ -70,7 +70,7 @@ services:
       - "8080:80"
     environment:
       NODE_ENV: production
-      CORS_ORIGIN: https://horario.tudominio.cl
+      CORS_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
 ```
 
 For local testing with the published image:
@@ -79,7 +79,15 @@ For local testing with the published image:
 docker compose up -d
 ```
 
-For production, edit `CORS_ORIGIN` in `docker-compose.yml` to the exact public origin, for example `https://horario.tudominio.cl`.
+If you want to open the app from a LAN IP or a public domain, append that exact origin to `CORS_ORIGIN`, separated by commas. Example:
+
+```yaml
+environment:
+  NODE_ENV: production
+  CORS_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
+```
+
+The backend only allows the exact origins you list, so the browser URL and `CORS_ORIGIN` must match.
 
 If the GHCR package is private, log in on the server before pulling:
 
@@ -111,7 +119,7 @@ Useful environment variables:
 
 ```bash
 NODE_ENV=production
-CORS_ORIGIN=https://horario.tudominio.cl
+CORS_ORIGIN=http://localhost:8080,http://127.0.0.1:8080,https://horario.tudominio.cl
 SESSION_TTL_MS=3600000
 MAX_SESSIONS=500
 MAX_SESSIONS_PER_IP=5
