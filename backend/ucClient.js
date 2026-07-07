@@ -1,6 +1,30 @@
 const BASE = 'https://registration9.uc.cl/StudentRegistrationSsb/ssb';
 
 const UNIQUE_SESSION_ID = `nwsef${Date.now()}`;
+const UC_REQUEST_TIMEOUT_MS = Number(process.env.UC_REQUEST_TIMEOUT_MS ?? 15_000);
+
+class UcTimeoutError extends Error {
+  constructor() {
+    super('UC registration request timed out');
+    this.name = 'UcTimeoutError';
+  }
+}
+
+async function ucFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UC_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new UcTimeoutError();
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 class CookieJar {
   constructor() {
@@ -57,7 +81,7 @@ function commonHeaders(session, extra = {}) {
 export async function createAnonymousUcSession() {
   const jar = new CookieJar();
 
-  const termSelectionRes = await fetch(`${BASE}/term/termSelection?mode=search`, {
+  const termSelectionRes = await ucFetch(`${BASE}/term/termSelection?mode=search`, {
     redirect: 'follow',
     headers: {
       'User-Agent':
@@ -67,7 +91,7 @@ export async function createAnonymousUcSession() {
   jar.absorb(termSelectionRes);
   await termSelectionRes.text();
 
-  const classSearchRes = await fetch(`${BASE}/classSearch/classSearch`, {
+  const classSearchRes = await ucFetch(`${BASE}/classSearch/classSearch`, {
     redirect: 'follow',
     headers: {
       Cookie: jar.toSession().cookies ? buildCookieHeader(jar.toSession()) : '',
@@ -92,7 +116,7 @@ export async function createAnonymousUcSession() {
 // testing filters back-to-back and seeing stale results until this was
 // added before every search.
 async function resetSearchForm(session) {
-  await fetch(`${BASE}/classSearch/resetDataForm`, {
+  await ucFetch(`${BASE}/classSearch/resetDataForm`, {
     headers: commonHeaders(session),
   });
 }
@@ -102,7 +126,7 @@ async function resetSearchForm(session) {
 // search call re-selects the term first. Cheap and avoids a hidden bug
 // where the first search of a session used the wrong term.
 async function selectTerm(term, session) {
-  const res = await fetch(`${BASE}/term/search?mode=search`, {
+  const res = await ucFetch(`${BASE}/term/search?mode=search`, {
     method: 'POST',
     headers: commonHeaders(session, {
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
@@ -290,7 +314,7 @@ export async function searchCourse({
 
   const params = buildSearchParams({ subjectCourse, term, pageOffset, pageMaxSize, filters });
 
-  const res = await fetch(`${BASE}/searchResults/searchResults?${params.toString()}`, {
+  const res = await ucFetch(`${BASE}/searchResults/searchResults?${params.toString()}`, {
     headers: commonHeaders(session),
   });
 
@@ -331,7 +355,7 @@ async function fetchLookup(endpoint, term, session) {
     max: '1000',
     uniqueSessionId: UNIQUE_SESSION_ID,
   });
-  const res = await fetch(`${BASE}/classSearch/${endpoint}?${params.toString()}`, {
+  const res = await ucFetch(`${BASE}/classSearch/${endpoint}?${params.toString()}`, {
     headers: commonHeaders(session),
   });
 
@@ -382,7 +406,7 @@ export async function searchInstructors(query, term, session) {
     max: '10',
     uniqueSessionId: UNIQUE_SESSION_ID,
   });
-  const res = await fetch(`${BASE}/classSearch/get_instructor?${params.toString()}`, {
+  const res = await ucFetch(`${BASE}/classSearch/get_instructor?${params.toString()}`, {
     headers: commonHeaders(session),
   });
   if (!isAuthenticated(res)) {
@@ -392,4 +416,4 @@ export async function searchInstructors(query, term, session) {
   return json.map((item) => ({ code: item.code, description: decodeHtmlEntities(item.description) }));
 }
 
-export { AuthExpiredError };
+export { AuthExpiredError, UcTimeoutError };
