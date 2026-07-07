@@ -133,24 +133,6 @@ TRUST_PROXY=loopback,linklocal,uniquelocal
 
 If another reverse proxy sits in front of the container, forward `Host`, `X-Forwarded-For` and `X-Forwarded-Proto`. The backend uses forwarded IP information for per-client rate limits when the proxy is trusted.
 
-## Security Notes
-
-- Anonymous Banner cookies are kept only in backend memory.
-- Browser session tokens are opaque and temporary.
-- The Docker image sends a restrictive Content Security Policy and related security headers through nginx.
-- The backend validates query parameters before sending requests upstream to Banner.
-- The Node backend process runs as an unprivileged container user.
-
-## Legal / Usage Notes
-
-- This project is for research and for providing a more usable frontend over course data available from UC's course search.
-- It does not automate enrollment.
-- It does not perform mass scraping.
-- It does not store user credentials or UC cookies on disk.
-- UC can change Banner behavior at any time, which may break this project.
-
-## The Unserious README Section
-
 # uchiddenhorario 💅✨
 
 OKAY GURL bienvenida al repo, siéntate, ponte cómoda, agarra tu té porque tenemos QUE HABLAR de lo que pasó acá 🍵👑 (y ADVERTENCIA, este README ya no es el mismo de la primera vez, esto CRECIÓ, esto tiene ARCO ARGUMENTAL ahora, así que agarra más té del que pensabas)
