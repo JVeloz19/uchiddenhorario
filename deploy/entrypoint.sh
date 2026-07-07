@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-node /app/backend/server.js &
+su-exec app:app node /app/backend/server.js &
 backend_pid=$!
 
 nginx -g 'daemon off;' &

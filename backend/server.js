@@ -14,6 +14,7 @@ import {
 
 const app = express();
 
+app.disable('x-powered-by');
 app.set('trust proxy', process.env.TRUST_PROXY ?? 'loopback,linklocal,uniquelocal');
 
 function envInt(name, fallback) {

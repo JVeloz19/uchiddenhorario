@@ -34,7 +34,7 @@ function App() {
       const { token } = await createAnonymousSession();
       setAuthToken(token);
       setAuthStatus('ready');
-    } catch (err) {
+    } catch {
       setAuthToken(null);
       setAuthStatus('error');
       setAuthError('No se pudo crear una sesión anónima con Banner.');
