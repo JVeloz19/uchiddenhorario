@@ -1,3 +1,148 @@
+# uchiddenhorario
+
+Buscador de ramos y horarios para la plataforma de inscripción UC/Banner. El backend crea sesiones anónimas de búsqueda contra Banner, mantiene las cookies solo en memoria y entrega al frontend un token opaco temporal. No recibe credenciales UC, no toca CAS y no persiste cookies.
+
+## Features
+
+- Sesión anónima de búsqueda para consultar Banner sin credenciales.
+- Búsqueda por código de ramo y filtros avanzados: profesor, campus, escuela, formato de curso, área, días, horario y vacantes.
+- Mi Horario: grilla visual, colores por curso y detección de conflictos.
+
+## Architecture
+
+```text
+uchiddenhorario/
+├── backend/     # Express proxy to UC Banner with anonymous search sessions
+├── frontend/    # React + Vite frontend
+└── deploy/      # nginx and container entrypoint config
+```
+
+The Docker image is single-container: nginx serves the built frontend and proxies `/api` to the backend Node process on `127.0.0.1:8787`.
+
+## Package Manager
+
+This repo standardizes on **npm**. Use the committed `package-lock.json` files as the source of truth. Do not add `pnpm-lock.yaml`.
+
+## Local Development
+
+Start the backend:
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Start the frontend in another terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. If Vite picks another localhost port, the backend allows localhost origins in development.
+
+## Docker
+
+Build and run locally:
+
+```bash
+docker build -t uchiddenhorario .
+docker run --rm -p 8080:80 \
+  -e NODE_ENV=production \
+  -e CORS_ORIGIN=http://localhost:8080 \
+  uchiddenhorario
+```
+
+Open `http://localhost:8080`. The API is same-origin under `/api`, so no `VITE_API_BASE` is needed for the normal Docker setup.
+
+## Docker Compose
+
+The included `docker-compose.yml` uses the image produced by the manual GitHub Actions workflow:
+
+```yaml
+services:
+  uchiddenhorario:
+    image: ghcr.io/jveloz19/uchiddenhorario:latest
+    ports:
+      - "8080:80"
+    environment:
+      NODE_ENV: production
+      CORS_ORIGIN: https://horario.tudominio.cl
+```
+
+For local testing with the published image:
+
+```bash
+docker compose up -d
+```
+
+For production, edit `CORS_ORIGIN` in `docker-compose.yml` to the exact public origin, for example `https://horario.tudominio.cl`.
+
+If the GHCR package is private, log in on the server before pulling:
+
+```bash
+docker login ghcr.io
+docker compose pull
+docker compose up -d
+```
+
+The GitHub token used for `docker login` needs `read:packages` for private images. Public images do not require server login.
+
+## Publishing The Docker Image
+
+Docker images are published manually through GitHub Actions:
+
+1. Go to the repository on GitHub.
+2. Open **Actions**.
+3. Select **Build Docker Image**.
+4. Click **Run workflow**.
+
+The workflow is intentionally manual-only and does not run on every merge to `main`. It pushes:
+
+- `ghcr.io/jveloz19/uchiddenhorario:latest`
+- `ghcr.io/jveloz19/uchiddenhorario:<git-sha>`
+
+## Production Environment
+
+Useful environment variables:
+
+```bash
+NODE_ENV=production
+CORS_ORIGIN=https://horario.tudominio.cl
+SESSION_TTL_MS=3600000
+MAX_SESSIONS=500
+MAX_SESSIONS_PER_IP=5
+SESSION_RATE_LIMIT_WINDOW_MS=600000
+SESSION_RATE_LIMIT_MAX=10
+API_RATE_LIMIT_WINDOW_MS=60000
+API_RATE_LIMIT_MAX=60
+UC_REQUEST_TIMEOUT_MS=15000
+TRUST_PROXY=loopback,linklocal,uniquelocal
+```
+
+If another reverse proxy sits in front of the container, forward `Host`, `X-Forwarded-For` and `X-Forwarded-Proto`. The backend uses forwarded IP information for per-client rate limits when the proxy is trusted.
+
+## Security Notes
+
+- Anonymous Banner cookies are kept only in backend memory.
+- Browser session tokens are opaque and temporary.
+- The Docker image sends a restrictive Content Security Policy and related security headers through nginx.
+- The backend validates query parameters before sending requests upstream to Banner.
+- The Node backend process runs as an unprivileged container user.
+
+## Legal / Usage Notes
+
+- This project is for research and for providing a more usable frontend over course data available from UC's course search.
+- It does not automate enrollment.
+- It does not perform mass scraping.
+- It does not store user credentials or UC cookies on disk.
+- UC can change Banner behavior at any time, which may break this project.
+
+## The Unserious README Section
+
 # uchiddenhorario 💅✨
 
 OKAY GURL bienvenida al repo, siéntate, ponte cómoda, agarra tu té porque tenemos QUE HABLAR de lo que pasó acá 🍵👑 (y ADVERTENCIA, este README ya no es el mismo de la primera vez, esto CRECIÓ, esto tiene ARCO ARGUMENTAL ahora, así que agarra más té del que pensabas)
@@ -15,79 +160,6 @@ Es un buscador de ramos y horarios para la plataforma de inscripción UC (Banner
 - 💖 **Mi Horario** — arma tu horario visual completo, con colores personalizables por curso, detecta conflictos de horario automáticamente, y sabe distinguir entre una clase real y una Interrogación (SIN asumir que solo existen INT1 e INT2, mis respetos a quien tiene ramos con Interrogación 3, ya te vimos)
 
 Le tiras el código del ramo (tipo `IIC2133`) o usas los filtros, eliges el semestre, y te tira TODAS las secciones con horario, sala, profesor, cupos disponibles, exámenes, todo servido en cards limpiecitas que no dan ganas de llorar 💅
-
-## la arquitectura (ya no tan breve, pero prometo que vale la pena)
-
-```text
-uchiddenhorario/
-├── backend/     # Express que le hace de proxy a UC con sesión anónima de búsqueda
-└── frontend/    # React + Vite, la cara bonita del asunto
-```
-
-**¿Por qué existe un backend?** Porque Banner usa cookies de sesión y estado server-side que no conviene exponer ni manejar directo desde el navegador. El backend abre una sesión anónima de búsqueda contra `registration9.uc.cl`, guarda esas cookies SOLO en memoria del servidor y le entrega al frontend un token opaco temporal. No recibe usuario, no recibe contraseña, no toca CAS y nada sobrevive a un reinicio.
-
-## cómo correrlo, bestie (setup actualizado, ya no hay que robar cookies de nadie)
-
-Este repo usa **npm** como package manager oficial. Si aparece un `pnpm-lock.yaml`, ignóralo o bórralo; la fuente de verdad son los `package-lock.json`.
-
-### 1. clona esto (ya lo hiciste si estás leyendo esto, slay)
-
-### 2. backend
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-npm run dev
-```
-
-Y ESO ES TODO. Así de simple. No hay que abrir DevTools, no hay que copiar cookies de Cloudflare, no hay que rezar. El `.env` solo necesita el puerto y el origen de CORS, nada de secretos de nadie. Corriendo en `http://localhost:8787` 💅
-
-### 3. frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Corriendo en `http://localhost:5173` (o el puerto que le toque si el 5173 estaba ocupado, Vite hace lo suyo, el backend acepta cualquier puertito de `localhost` así que no estresen).
-
-Abran eso en el navegador, esperen a que la app cree la sesión de búsqueda automáticamente, tiren un código de ramo o usen los filtros avanzados, y ATAQUEN.
-
-## cómo self-hostearlo con Docker
-
-La imagen Docker es single-container: nginx sirve el frontend ya compilado y proxyea `/api` al backend Node que corre adentro del mismo contenedor en `127.0.0.1:8787`.
-
-```bash
-docker build -t uchiddenhorario .
-docker run --rm -p 8080:80 \
-  -e NODE_ENV=production \
-  -e CORS_ORIGIN=http://localhost:8080 \
-  uchiddenhorario
-```
-
-Después abre `http://localhost:8080`. La API queda en el mismo origen bajo `/api`, así que no necesitas configurar `VITE_API_BASE` para el caso normal.
-
-Para producción real, cambia `CORS_ORIGIN` al dominio público exacto:
-
-```bash
-docker run -d --name uchiddenhorario -p 8080:80 \
-  -e NODE_ENV=production \
-  -e CORS_ORIGIN=https://horario.tudominio.cl \
-  -e SESSION_TTL_MS=3600000 \
-  -e MAX_SESSIONS=500 \
-  -e MAX_SESSIONS_PER_IP=5 \
-  -e SESSION_RATE_LIMIT_WINDOW_MS=600000 \
-  -e SESSION_RATE_LIMIT_MAX=10 \
-  -e API_RATE_LIMIT_WINDOW_MS=60000 \
-  -e API_RATE_LIMIT_MAX=60 \
-  -e UC_REQUEST_TIMEOUT_MS=15000 \
-  -e TRUST_PROXY=loopback,linklocal,uniquelocal \
-  uchiddenhorario
-```
-
-Si pones otro reverse proxy delante del contenedor, asegúrate de reenviar `Host`, `X-Forwarded-For` y `X-Forwarded-Proto`; el backend usa esos headers para aplicar bien los límites por IP.
 
 ## cómo funciona la sesión por dentro (para quien le interese el chisme técnico)
 
@@ -108,17 +180,6 @@ Miren esto, este screenshot de abajo es HISTÓRICO, es un artefacto arqueológic
 *"Failed to fetch"*. Así, en rojo, sin piedad. La IA (yo) había dejado un servidor de prueba zombie ocupando el puerto 5173, Vite tuvo que mudarse al 5174 como toda una reina independiente, pero el backend seguía con el corazón cerrado, aceptando UN SOLO puerto específico, como una relación tóxica de la que no se quería salir. CORS dijo que no y lo dijo FUERTE.
 
 ¿La solución? Le enseñamos al backend a aceptar cualquier puertito de `localhost`/`127.0.0.1` en desarrollo, en vez de tenerle celos a un solo número. Crecimiento personal, para el código y para todos nosotros 😩🙏🏼 y ahora esta screenshot vive acá, para siempre, como recordatorio de que hasta las IAs metemos las patas, pero al menos ESTA lo admite en el README en vez de barrerlo bajo la alfombra, ICÓNICO, humilde, real.
-
-## "UC POR FAVOR NO ME EXPULSEN" (la sección legal-ish, léanla en serio por un segundo)
-
-Bajando el tono UN segundo, de verdad, porque esto importa:
-
-- Este proyecto existe con fines de **investigación y para tener un frontend más agradable** sobre datos consultables desde la búsqueda de ramos. No se hace scraping masivo, no se automatiza inscripción, no se toca NADA que no sea "mostrar bonito lo que ya se puede ver feo".
-- Cada sesión de búsqueda se crea anónimamente desde el backend y queda solo en memoria. No hay cuenta compartida, no hay credenciales de terceros dando vueltas, no hay cookies guardadas en disco.
-- Durante el desarrollo se identificó que la UC expone públicamente archivos JavaScript sin minificar (`*.unminified.js`) junto a los minificados, lo cual permitió entender mejor cómo funciona su sistema de búsqueda. Esto se documenta acá con fines completamente informativos/de transparencia, no se explotó ninguna vulnerabilidad, no se accedió a nada que no fuera ya público y servido activamente por el propio servidor de la universidad.
-- Si alguien de la Dirección de Informática UC está leyendo esto: hola, we come in peace, si algo acá les preocupa avísenle al dueño del repo y se conversa, esto se hizo por cariño al sistema (bueno, MÁS BIEN por hartazgo con la UX del sistema oficial) no por mala leche.
-
-Y ahora sí, volvemos al tono normal:
 
 ## disclaimers finales (la parte aburrida pero necesaria, lo siento no lo siento)
 
