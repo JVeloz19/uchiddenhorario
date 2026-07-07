@@ -28,6 +28,8 @@ uchiddenhorario/
 
 ## cómo correrlo, bestie (setup actualizado, ya no hay que robar cookies de nadie)
 
+Este repo usa **npm** como package manager oficial. Si aparece un `pnpm-lock.yaml`, ignóralo o bórralo; la fuente de verdad son los `package-lock.json`.
+
 ### 1. clona esto (ya lo hiciste si estás leyendo esto, slay)
 
 ### 2. backend
@@ -52,6 +54,40 @@ npm run dev
 Corriendo en `http://localhost:5173` (o el puerto que le toque si el 5173 estaba ocupado, Vite hace lo suyo, el backend acepta cualquier puertito de `localhost` así que no estresen).
 
 Abran eso en el navegador, esperen a que la app cree la sesión de búsqueda automáticamente, tiren un código de ramo o usen los filtros avanzados, y ATAQUEN.
+
+## cómo self-hostearlo con Docker
+
+La imagen Docker es single-container: nginx sirve el frontend ya compilado y proxyea `/api` al backend Node que corre adentro del mismo contenedor en `127.0.0.1:8787`.
+
+```bash
+docker build -t uchiddenhorario .
+docker run --rm -p 8080:80 \
+  -e NODE_ENV=production \
+  -e CORS_ORIGIN=http://localhost:8080 \
+  uchiddenhorario
+```
+
+Después abre `http://localhost:8080`. La API queda en el mismo origen bajo `/api`, así que no necesitas configurar `VITE_API_BASE` para el caso normal.
+
+Para producción real, cambia `CORS_ORIGIN` al dominio público exacto:
+
+```bash
+docker run -d --name uchiddenhorario -p 8080:80 \
+  -e NODE_ENV=production \
+  -e CORS_ORIGIN=https://horario.tudominio.cl \
+  -e SESSION_TTL_MS=3600000 \
+  -e MAX_SESSIONS=500 \
+  -e MAX_SESSIONS_PER_IP=5 \
+  -e SESSION_RATE_LIMIT_WINDOW_MS=600000 \
+  -e SESSION_RATE_LIMIT_MAX=10 \
+  -e API_RATE_LIMIT_WINDOW_MS=60000 \
+  -e API_RATE_LIMIT_MAX=60 \
+  -e UC_REQUEST_TIMEOUT_MS=15000 \
+  -e TRUST_PROXY=loopback,linklocal,uniquelocal \
+  uchiddenhorario
+```
+
+Si pones otro reverse proxy delante del contenedor, asegúrate de reenviar `Host`, `X-Forwarded-For` y `X-Forwarded-Proto`; el backend usa esos headers para aplicar bien los límites por IP.
 
 ## cómo funciona la sesión por dentro (para quien le interese el chisme técnico)
 
