@@ -84,68 +84,6 @@ button, input, select {
   opacity: 0.75;
 }
 
-.auth-panel {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 20px;
-}
-
-.auth-panel__status {
-  margin: 0 0 10px;
-  font-size: 14px;
-  opacity: 0.85;
-}
-
-.login-form {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.login-form input {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text-h);
-  border-radius: 8px;
-  padding: 8px 12px;
-  flex: 1;
-  min-width: 140px;
-}
-
-.login-form button {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.login-form button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.login-form__error {
-  flex-basis: 100%;
-  margin: 4px 0 0;
-  font-size: 13px;
-}
-
-.link-button {
-  background: none;
-  border: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: inherit;
-  padding: 0;
-  text-decoration: underline;
-}
-
 .search-form {
   display: flex;
   gap: 10px;

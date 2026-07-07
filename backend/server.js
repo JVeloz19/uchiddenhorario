@@ -2,14 +2,19 @@ import 'dotenv/config';
 import crypto from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
-import { searchCourse, getFilterOptions, searchInstructors, AuthExpiredError } from './ucClient.js';
-import { loginWithCas, CasAuthError } from './casClient.js';
+import {
+  searchCourse,
+  getFilterOptions,
+  searchInstructors,
+  createAnonymousUcSession,
+  AuthExpiredError,
+} from './ucClient.js';
 
 const app = express();
 
-// In-memory only: maps an opaque bearer token we hand the frontend to the
-// UC session (JSESSIONID etc.) obtained via CAS login. Never touches disk,
-// gone on restart, expires on its own well before Banner's own session does.
+// In-memory only: maps an opaque bearer token we hand the frontend to an
+// anonymous UC search session (JSESSIONID etc.). Never touches disk, gone
+// on restart, expires on its own well before Banner's own session does.
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 const sessions = new Map();
 
@@ -61,34 +66,29 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body ?? {};
-
-  if (!username || !password) {
-    return res.status(400).json({ error: 'username and password are required' });
-  }
-
+async function createAnonymousSessionResponse(_req, res) {
   try {
-    const ucSession = await loginWithCas(username, password);
+    const ucSession = await createAnonymousUcSession();
     const token = createSession(ucSession);
-    res.json({ token, expiresInMs: SESSION_TTL_MS });
+    res.json({ token, expiresInMs: SESSION_TTL_MS, anonymous: true });
   } catch (err) {
-    if (err instanceof CasAuthError) {
-      return res.status(401).json({ error: 'cas_auth_failed', message: err.message });
-    }
     console.error(err);
-    res.status(502).json({ error: 'upstream_error', message: 'Failed to reach UC login' });
+    res.status(502).json({ error: 'upstream_error', message: 'Failed to create anonymous UC session' });
   }
-  // `password` goes out of scope here; nothing above retained it beyond
-  // the loginWithCas() call.
-});
+}
+
+app.post('/api/session', createAnonymousSessionResponse);
+
+// Backward-compatible alias for the old frontend call. This no longer uses
+// UC credentials; it only creates an anonymous Banner search session.
+app.post('/api/login', createAnonymousSessionResponse);
 
 function requireSession(req, res, next) {
   const authHeader = req.get('Authorization');
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
   if (!bearerToken) {
-    return res.status(401).json({ error: 'login_required', message: 'Please log in with your UC account' });
+    return res.status(401).json({ error: 'session_required', message: 'Create an anonymous UC session first' });
   }
 
   const session = getSession(bearerToken);
