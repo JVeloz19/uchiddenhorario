@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { searchCourse, AuthExpiredError } from './api';
+import { useCallback, useEffect, useState } from 'react';
+import { createAnonymousSession, searchCourse, AuthExpiredError } from './api';
 import { SectionCard } from './SectionCard';
-import { LoginForm } from './LoginForm';
 import { HorarioGrid } from './HorarioGrid';
 import { AdvancedFilters } from './AdvancedFilters';
 import { listHorario } from './horarioStore';
@@ -22,25 +21,34 @@ function App() {
   const [horario, setHorario] = useState(() => listHorario());
 
   // Held only in memory (React state), never localStorage: this token
-  // grants read access to the user's own UC session, so it shouldn't
-  // outlive the tab any more than necessary.
+  // grants access to one anonymous Banner search session.
   const [authToken, setAuthToken] = useState(null);
-  const [loggedInAs, setLoggedInAs] = useState(null);
+  const [authStatus, setAuthStatus] = useState('loading'); // loading | ready | error
+  const [authError, setAuthError] = useState('');
 
-  function handleLoggedIn(token, username) {
-    setAuthToken(token);
-    setLoggedInAs(username);
-  }
+  const refreshAnonymousSession = useCallback(async () => {
+    setAuthStatus('loading');
+    setAuthError('');
 
-  function handleLogout() {
-    setAuthToken(null);
-    setLoggedInAs(null);
-  }
+    try {
+      const { token } = await createAnonymousSession();
+      setAuthToken(token);
+      setAuthStatus('ready');
+    } catch {
+      setAuthToken(null);
+      setAuthStatus('error');
+      setAuthError('No se pudo crear una sesión anónima con Banner.');
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshAnonymousSession();
+  }, [refreshAnonymousSession]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     const code = subjectCourse.trim().toUpperCase();
-    if (!code && !hasAnyFilter(filters)) return;
+    if ((!code && !hasAnyFilter(filters)) || !authToken) return;
 
     setStatus('loading');
     setErrorMessage('');
@@ -53,7 +61,7 @@ function App() {
       setErrorMessage(err.message);
       if (err instanceof AuthExpiredError) {
         setStatus('authExpired');
-        if (authToken) handleLogout();
+        await refreshAnonymousSession();
       } else {
         setStatus('error');
       }
@@ -68,23 +76,13 @@ function App() {
         <p>Buscador rápido de secciones y horarios UC</p>
       </header>
 
-      <section className="auth-panel">
-        {loggedInAs ? (
-          <p className="auth-panel__status">
-            Conectado como <strong>{loggedInAs}</strong>{' '}
-            <button type="button" className="link-button" onClick={handleLogout}>
-              cerrar sesión
-            </button>
-          </p>
-        ) : (
-          <>
-            <p className="auth-panel__status">Inicia sesión con tu cuenta UC para buscar ramos:</p>
-            <LoginForm onLoggedIn={handleLoggedIn} />
-          </>
-        )}
-      </section>
+      {authStatus === 'error' && (
+        <p className="banner banner--danger">
+          {authError} Recarga la página para intentarlo de nuevo.
+        </p>
+      )}
 
-      {loggedInAs && (
+      {authToken && (
         <form className="search-form" onSubmit={handleSubmit}>
           <input
             type="text"
@@ -104,13 +102,13 @@ function App() {
         </form>
       )}
 
-      {loggedInAs && (
+      {authToken && (
         <AdvancedFilters term={term} token={authToken} filters={filters} onChange={setFilters} />
       )}
 
       {status === 'authExpired' && (
         <p className="banner banner--warn">
-          {errorMessage || 'Tu sesión UC expiró, inicia sesión de nuevo.'}
+          {errorMessage || 'Tu sesión anónima expiró, se creó una nueva.'}
         </p>
       )}
       {status === 'error' && (

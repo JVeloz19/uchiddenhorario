@@ -1,4 +1,7 @@
 const STORAGE_KEY = 'uchiddenhorario:mihorario';
+const SAFE_COLOR = /^#[0-9a-f]{6}$/i;
+const SAFE_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const SAFE_DAYS = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
 
 // Cute pastel starter palette, auto-assigned round-robin as courses get
 // added; user can override any of them from the color picker.
@@ -16,14 +19,52 @@ const PALETTE = [
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return raw ? sanitizeEntries(JSON.parse(raw)) : [];
   } catch {
     return [];
   }
 }
 
 function save(entries) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizeEntries(entries)));
+}
+
+function text(value, maxLength = 120) {
+  if (typeof value !== 'string') return '';
+  return Array.from(value)
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code > 31 && code !== 127;
+    })
+    .join('')
+    .slice(0, maxLength);
+}
+
+function safeTime(value) {
+  return value === null || SAFE_TIME.test(value) ? value : null;
+}
+
+function sanitizeBlock(block) {
+  const days = Array.isArray(block?.days) ? block.days.filter((day) => SAFE_DAYS.has(day)) : [];
+  return {
+    type: text(block?.type, 40),
+    typeDescription: text(block?.typeDescription, 120),
+    beginTime: safeTime(block?.beginTime),
+    endTime: safeTime(block?.endTime),
+    days,
+  };
+}
+
+function sanitizeEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries.slice(0, 50).map((entry) => ({
+    nrc: text(entry?.nrc, 20),
+    subjectCourse: text(entry?.subjectCourse, 20),
+    title: text(entry?.title, 160),
+    section: text(entry?.section, 20),
+    color: SAFE_COLOR.test(entry?.color ?? '') ? entry.color : nextColor([]),
+    weeklySchedule: Array.isArray(entry?.weeklySchedule) ? entry.weeklySchedule.slice(0, 30).map(sanitizeBlock) : [],
+  }));
 }
 
 function nextColor(existingEntries) {

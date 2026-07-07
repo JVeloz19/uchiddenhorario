@@ -22,6 +22,10 @@ function timeToMinutes(hhmm) {
   return h * 60 + m;
 }
 
+function hasRenderableTime(block) {
+  return typeof block.beginTime === 'string' && typeof block.endTime === 'string';
+}
+
 const HOUR_MARKS = Array.from(
   { length: Math.ceil((DAY_END_MIN - DAY_START_MIN) / 60) + 1 },
   (_, i) => DAY_START_MIN + i * 60
@@ -104,6 +108,7 @@ export function HorarioGrid({ entries, onChange }) {
     const byDay = Object.fromEntries(DAY_COLUMNS.map((d) => [d.key, []]));
     for (const entry of entries) {
       for (const block of entry.weeklySchedule) {
+        if (!hasRenderableTime(block)) continue;
         for (const day of block.days) {
           if (byDay[day]) byDay[day].push({ entry, block });
         }

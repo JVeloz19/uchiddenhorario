@@ -1,0 +1,19 @@
+services:
+  uchiddenhorario:
+    image: ghcr.io/jveloz19/uchiddenhorario:latest
+    container_name: uchiddenhorario
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      NODE_ENV: production
+      CORS_ORIGIN: http://localhost:8080
+      SESSION_TTL_MS: "3600000"
+      MAX_SESSIONS: "500"
+      MAX_SESSIONS_PER_IP: "5"
+      SESSION_RATE_LIMIT_WINDOW_MS: "600000"
+      SESSION_RATE_LIMIT_MAX: "10"
+      API_RATE_LIMIT_WINDOW_MS: "60000"
+      API_RATE_LIMIT_MAX: "60"
+      UC_REQUEST_TIMEOUT_MS: "15000"
+      TRUST_PROXY: loopback,linklocal,uniquelocal
